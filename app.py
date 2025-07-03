@@ -22,7 +22,7 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
 
 # Muat model YOLOv8 (ganti 'best.pt' dengan nama file model Anda)
 try:
-    model = YOLO('pt-model/model.pt')
+    model = YOLO('pt-model/best.pt')
 except Exception as e:
     print(f"Error loading model: {e}")
     # Anda bisa memutuskan untuk keluar dari aplikasi jika model gagal dimuat
@@ -60,11 +60,15 @@ def predict():
         img = cv2.imread(filepath)
         results = model(img)
         
-        # Render hasil dan simpan gambar baru
-        results.render()
+        # --- PERBAIKAN TERBARU ADA DI SINI ---
+        # Gunakan .plot() untuk mendapatkan gambar hasil deteksi
+        annotated_image = results[0].plot()
+        
+        # Simpan gambar hasil deteksi
         output_filename = 'result_' + filename
         output_path = os.path.join(app.config['RESULT_FOLDER'], output_filename)
-        cv2.imwrite(output_path, results.imgs[0])
+        cv2.imwrite(output_path, annotated_image)
+        # ------------------------------------
 
         return render_template('result.html', filename=output_filename)
 
@@ -82,7 +86,7 @@ def generate_frames():
         
         # Lakukan deteksi pada setiap frame
         results = model(frame)
-        annotated_frame = results[0].plot() # Menggunakan .plot() yang lebih baru
+        annotated_frame = results[0].plot()
 
         # Encode frame ke format JPEG
         ret, buffer = cv2.imencode('.jpg', annotated_frame)
@@ -109,5 +113,3 @@ def camera_page():
 # --- MENJALANKAN APLIKASI ---
 if __name__ == '__main__':
     app.run(debug=True)
-
-# 
