@@ -1,0 +1,9 @@
+# Folder yang tidak perlu
+__pycache__/
+env/
+venv/
+.vscode/
+
+# File konfigurasi
+*.log
+*.env

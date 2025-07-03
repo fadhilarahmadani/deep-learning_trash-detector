@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Deteksi Sampah</title>
+</head>
+<body>
+    <h1>Upload Gambar Sampah untuk Deteksi</h1>
+    <form action="/predict" method="post" enctype="multipart/form-data">
+        <input type="file" name="image">
+        <input type="submit" value="Upload & Deteksi">
+    </form>
+    <hr>
+    <h3>Atau coba deteksi langsung dari kamera:</h3>
+    <a href="/camera_feed">Deteksi via Kamera</a>
+</body>
+</html>
