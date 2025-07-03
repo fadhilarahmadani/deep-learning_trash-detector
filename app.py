@@ -1,115 +1,79 @@
-import os
-import cv2
-from flask import Flask, render_template, request, Response, redirect, url_for
-from werkzeug.utils import secure_filename
+import streamlit as st
 from ultralytics import YOLO
+from PIL import Image
+import cv2  # FIX 1: Tambahkan import cv2
+import os
 
-# Inisialisasi aplikasi Flask
-app = Flask(__name__)
+# --- KONFIGURASI HALAMAN ---
+st.set_page_config(
+    page_title="Deteksi Sampah",
+    page_icon="🌿",
+    layout="wide",
+    initial_sidebar_state="auto",
+)
 
-# --- KONFIGURASI ---
-# Tentukan path untuk folder upload dan hasil
-UPLOAD_FOLDER = 'static/uploads/'
-RESULT_FOLDER = 'static/results/'
-# Pastikan folder-folder tersebut ada
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(RESULT_FOLDER, exist_ok=True)
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['RESULT_FOLDER'] = RESULT_FOLDER
+# --- JUDUL APLIKASI ---
+st.title("🌿 Sistem Deteksi Sampah")
+st.write("Unggah gambar atau gunakan kamera untuk mendeteksi jenis sampah secara real-time.")
 
-# Tentukan format file gambar yang diizinkan
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
+# --- MEMUAT MODEL (dengan cache agar lebih cepat) ---
+# Ganti 'best.pt' dengan path dan nama file model Anda
+@st.cache_resource
+def load_model(model_path):
+    """Memuat model YOLO dari path yang diberikan."""
+    model = YOLO(model_path)
+    return model
 
-# Muat model YOLOv8 (ganti 'best.pt' dengan nama file model Anda)
+# Panggil fungsi untuk memuat model
 try:
-    model = YOLO('pt-model/best.pt')
+    model = load_model('pt-model/best.pt')
 except Exception as e:
-    print(f"Error loading model: {e}")
-    # Anda bisa memutuskan untuk keluar dari aplikasi jika model gagal dimuat
-    # exit()
+    st.error(f"Gagal memuat model. Pastikan file 'pt-model/best.pt' ada. Error: {e}")
+    st.stop()
 
-# --- FUNGSI BANTUAN ---
-def allowed_file(filename):
-    """Memeriksa apakah ekstensi file diizinkan."""
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# --- RUTE-RUTE APLIKASI ---
-@app.route('/')
-def index():
-    """Menampilkan halaman utama (index.html)."""
-    return render_template('index.html')
+# --- FUNGSI UNTUK PROSES DETEKSI ---
+def process_and_display(image):
+    """Melakukan deteksi pada gambar dan menampilkannya."""
+    # Tampilkan gambar asli
+    st.image(image, caption="Gambar Asli", use_container_width=True) # FIX 2: Ganti ke use_container_width
 
-@app.route('/predict', methods=['POST'])
-def predict():
-    """Menangani upload file dan melakukan prediksi."""
-    if 'image' not in request.files:
-        return redirect(request.url)
+    # Lakukan deteksi
+    results = model(image)
     
-    file = request.files['image']
-
-    if file.filename == '' or not allowed_file(file.filename):
-        return redirect(request.url)
-
-    if file:
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
-
-        # Lakukan deteksi pada gambar yang diunggah
-        img = cv2.imread(filepath)
-        results = model(img)
-        
-        # --- PERBAIKAN TERBARU ADA DI SINI ---
-        # Gunakan .plot() untuk mendapatkan gambar hasil deteksi
-        annotated_image = results[0].plot()
-        
-        # Simpan gambar hasil deteksi
-        output_filename = 'result_' + filename
-        output_path = os.path.join(app.config['RESULT_FOLDER'], output_filename)
-        cv2.imwrite(output_path, annotated_image)
-        # ------------------------------------
-
-        return render_template('result.html', filename=output_filename)
-
-def generate_frames():
-    """Menghasilkan frame video dari kamera untuk streaming."""
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
-        print("Error: Kamera tidak bisa dibuka.")
-        return
-
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-        
-        # Lakukan deteksi pada setiap frame
-        results = model(frame)
-        annotated_frame = results[0].plot()
-
-        # Encode frame ke format JPEG
-        ret, buffer = cv2.imencode('.jpg', annotated_frame)
-        if not ret:
-            continue
-            
-        frame_bytes = buffer.tobytes()
-        # Kirim frame sebagai respons HTTP
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+    # Dapatkan gambar hasil deteksi
+    annotated_image = results[0].plot()
     
-    cap.release()
+    # Konversi warna dari BGR (OpenCV) ke RGB (Pillow/Streamlit)
+    annotated_image_rgb = Image.fromarray(cv2.cvtColor(annotated_image, cv2.COLOR_BGR2RGB))
+    
+    # Tampilkan gambar hasil deteksi
+    st.image(annotated_image_rgb, caption="Hasil Deteksi", use_container_width=True) # FIX 2: Ganti ke use_container_width
 
-@app.route('/video_feed')
-def video_feed():
-    """Rute untuk video streaming."""
-    return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
-@app.route('/camera_feed')
-def camera_page():
-    """Menampilkan halaman untuk deteksi via kamera."""
-    return render_template('camera.html')
+# --- ANTARMUKA UPLOAD GAMBAR ---
+st.subheader("1. Unggah Gambar Anda")
+uploaded_file = st.file_uploader(
+    "Pilih file gambar...",
+    type=['png', 'jpg', 'jpeg', 'webp'],
+    label_visibility="collapsed"
+)
 
-# --- MENJALANKAN APLIKASI ---
-if __name__ == '__main__':
-    app.run(debug=True)
+if uploaded_file is not None:
+    # Buka gambar menggunakan Pillow
+    image = Image.open(uploaded_file)
+    process_and_display(image)
+
+st.divider()
+
+# --- ANTARMUKA KAMERA ---
+st.subheader("2. Atau Gunakan Kamera Langsung")
+camera_image = st.camera_input(
+    "Ambil gambar dengan kamera",
+    label_visibility="collapsed"
+)
+
+if camera_image is not None:
+    # Buka gambar dari kamera menggunakan Pillow
+    image = Image.open(camera_image)
+    process_and_display(image)
