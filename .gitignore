@@ -3,6 +3,8 @@ __pycache__/
 env/
 venv/
 .vscode/
+venv/
+
 
 # File konfigurasi
 *.log
