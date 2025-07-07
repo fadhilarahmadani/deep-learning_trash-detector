@@ -76,7 +76,7 @@ def load_model(model_path):
     return model
 
 try:
-    model = load_model('pt-model/best.pt')
+    model = load_model('model/best.pt')
 except Exception as e:
     st.error(f"Gagal memuat model: {e}")
     st.stop()
